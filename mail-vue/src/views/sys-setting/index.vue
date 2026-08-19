@@ -75,6 +75,18 @@
               </div>
               <div class="setting-item">
                 <div>
+                  <span>{{ $t('trashRetention') }}</span>
+                  <el-tooltip effect="dark" :content="$t('trashRetentionDesc')">
+                    <Icon class="warning" icon="fe:warning" width="18" height="18"/>
+                  </el-tooltip>
+                </div>
+                <div>
+                  <el-input-number size="small" v-model="setting.trashRetentionDays" :min="1" :max="3650"
+                                   @change="value => changeField('trashRetentionDays', value)"/>
+                </div>
+              </div>
+              <div class="setting-item">
+                <div>
                   <span>{{ $t('emailPrefix') }}</span>
                 </div>
                 <div class="forward">

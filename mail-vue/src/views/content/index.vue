@@ -3,6 +3,8 @@
     <div class="header-actions">
       <Icon class="icon" icon="material-symbols-light:arrow-back-ios-new" width="20" height="20" @click="handleBack"/>
       <Icon v-perm="'email:delete'" class="icon" icon="uiw:delete" width="16" height="16" @click="handleDelete"/>
+      <Icon class="icon" v-if="emailStore.contentData.delType === 'trash'"
+            icon="material-symbols:restore-from-trash-outline-rounded" width="21" height="21" @click="handleRestore"/>
       <span class="star" v-if="emailStore.contentData.showStar">
         <Icon class="icon" @click="changeStar" v-if="email.isStar" icon="fluent-color:star-16" width="20" height="20"/>
         <Icon class="icon" @click="changeStar" v-else icon="solar:star-line-duotone" width="18" height="18"/>
@@ -78,7 +80,7 @@ import ShadowHtml from '@/components/shadow-html/index.vue'
 import {reactive, ref, watch, onMounted, onUnmounted} from "vue";
 import {useRouter} from 'vue-router'
 import {ElMessage, ElMessageBox} from 'element-plus'
-import {emailDelete, emailRead} from "@/request/email.js";
+import {emailDelete, emailDeleteForever, emailRead, emailRestore} from "@/request/email.js";
 import {Icon} from "@iconify/vue";
 import {useEmailStore} from "@/store/email.js";
 import {useAccountStore} from "@/store/account.js";
@@ -195,7 +197,7 @@ const handleBack = () => {
 }
 
 const handleDelete = () => {
-  ElMessageBox.confirm(t('delEmailConfirm'), {
+  ElMessageBox.confirm(t(emailStore.contentData.delType === 'trash' ? 'deleteForeverConfirm' : 'delEmailConfirm'), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'
@@ -207,6 +209,11 @@ const handleDelete = () => {
           type: 'success',
           plain: true,
         })
+        emailStore.deleteIds = [email.emailId]
+      })
+    } else if (emailStore.contentData.delType === 'trash') {
+      emailDeleteForever([email.emailId]).then(() => {
+        ElMessage({message: t('delSuccessMsg'), type: 'success', plain: true})
         emailStore.deleteIds = [email.emailId]
       })
     } else  {
@@ -221,6 +228,14 @@ const handleDelete = () => {
       })
     }
 
+    router.back()
+  })
+}
+
+const handleRestore = () => {
+  emailRestore([email.emailId]).then(() => {
+    ElMessage({message: t('restoreSuccessMsg'), type: 'success', plain: true})
+    emailStore.deleteIds = [email.emailId]
     router.back()
   })
 }

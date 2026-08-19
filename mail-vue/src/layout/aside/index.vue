@@ -26,6 +26,16 @@
           <Icon icon="solar:star-line-duotone" width="20" height="20" />
           <span class="menu-name" style="margin-left: 21px">{{$t('starred')}}</span>
         </el-menu-item>
+        <el-menu-item @click="router.push({name: 'trash'})" index="trash"
+                      :class="route.meta.name === 'trash' ? 'choose-item' : ''">
+          <Icon icon="solar:trash-bin-trash-linear" width="20" height="20" />
+          <span class="menu-name" style="margin-left: 21px">{{$t('trash')}}</span>
+        </el-menu-item>
+        <el-menu-item @click="router.push({name: 'mail-rules'})" index="mail-rules"
+                      :class="route.meta.name === 'mail-rules' ? 'choose-item' : ''">
+          <Icon icon="solar:filter-linear" width="20" height="20" />
+          <span class="menu-name" style="margin-left: 21px">{{$t('rulesAndLabels')}}</span>
+        </el-menu-item>
         <el-menu-item @click="router.push({name: 'setting'})" index="setting"
                       :class="route.meta.name === 'setting' ? 'choose-item' : ''">
           <Icon icon="fluent:settings-48-regular" width="20" height="20" />

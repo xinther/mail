@@ -51,6 +51,24 @@ const routes = [
                     menu: true
                 }
             },
+            {
+                path: '/search',
+                name: 'search',
+                component: () => import('@/views/search/index.vue'),
+                meta: { title: 'searchMail', name: 'search', menu: true }
+            },
+            {
+                path: '/trash',
+                name: 'trash',
+                component: () => import('@/views/trash/index.vue'),
+                meta: { title: 'trash', name: 'trash', menu: true }
+            },
+            {
+                path: '/mail-rules',
+                name: 'mail-rules',
+                component: () => import('@/views/mail-rules/index.vue'),
+                meta: { title: 'rulesAndLabels', name: 'mail-rules', menu: true }
+            },
         ]
 
     },

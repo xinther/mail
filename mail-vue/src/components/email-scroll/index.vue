@@ -15,6 +15,9 @@
         <Icon v-perm="'email:delete'" class="icon delete" icon="uiw:delete" width="16" height="16"
               v-if="getSelectedMailsIds().length > 0"
               @click="handleDelete"/>
+        <Icon class="icon restore" icon="material-symbols:restore-from-trash-outline-rounded" width="21" height="21"
+              v-if="getSelectedMailsIds().length > 0 && props.type === 'trash'"
+              @click="handleRestore"/>
         <Icon v-perm="'email:delete'" class="icon delete" icon="fluent:mail-read-20-regular" width="21" height="21"
               v-if="getSelectedMailsIds().length > 0 && showUnread"
               @click="handleRead"/>
@@ -84,6 +87,11 @@
                   <div class="email-text">
                     <span class="email-subject" :style="(item.unread === EmailUnreadEnum.UNREAD && showUnread)  ? 'font-weight: bold' : ''">
                       <div class="unread" v-if="!isMobile && (item.unread === EmailUnreadEnum.UNREAD && showUnread) "/>
+                      <span class="mail-labels" v-if="item.labels?.length">
+                        <span class="mail-label" v-for="label in item.labels.slice(0, 2)" :key="label.labelId"
+                              :style="{color: label.color, borderColor: label.color}">{{ label.name }}</span>
+                        <span class="label-more" v-if="item.labels.length > 2">+{{ item.labels.length - 2 }}</span>
+                      </span>
                       <span v-if="item.code" class="code-tag" @click.stop="copyCode(item.code)">[{{ t('codeLabel') }}{{ item.code }}]</span>
                       <span class="subject-text">
                         <slot name="subject" :email="item" >
@@ -173,6 +181,14 @@
               </div>
             </template>
           </el-dropdown-item>
+          <el-dropdown-item v-if="props.type === 'trash'" @click="restoreSelected([rightClickEmail.emailId])">
+            <template #default>
+              <div class="right-dropdown-item">
+                <Icon icon="material-symbols:restore-from-trash-outline-rounded" width="20" height="20" />
+                <span>{{t('restore')}}</span>
+              </div>
+            </template>
+          </el-dropdown-item>
           <el-dropdown-item v-if="['email','star'].includes(props.type)" @click="openReply(rightClickEmail)">
             <template #default>
               <div class="right-dropdown-item">
@@ -194,6 +210,14 @@
               <div class="right-dropdown-item">
                 <Icon icon="solar:star-line-duotone" width="19" height="19"/>
                 <span>{{t('star')}}</span>
+              </div>
+            </template>
+          </el-dropdown-item>
+          <el-dropdown-item v-if="['email','send','star','search'].includes(props.type)" @click="openLabelDialog">
+            <template #default>
+              <div class="right-dropdown-item">
+                <Icon icon="solar:tag-linear" width="19" height="19" />
+                <span>{{t('manageLabels')}}</span>
               </div>
             </template>
           </el-dropdown-item>
@@ -232,6 +256,18 @@
         </el-dropdown-menu>
       </template>
     </el-dropdown>
+    <el-dialog v-model="labelDialog" :title="t('manageLabels')" width="360px">
+      <el-checkbox-group v-model="selectedLabelIds" class="label-options" v-if="availableLabels.length">
+        <el-checkbox v-for="item in availableLabels" :key="item.labelId" :value="item.labelId">
+          <span class="label-dot" :style="{backgroundColor: item.color}"></span>{{ item.name }}
+        </el-checkbox>
+      </el-checkbox-group>
+      <el-empty v-else :image-size="80" :description="t('createLabelFirst')"/>
+      <template #footer>
+        <el-button @click="labelDialog = false">{{t('cancel')}}</el-button>
+        <el-button type="primary" :disabled="!availableLabels.length" :loading="labelSaving" @click="saveLabels">{{t('save')}}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -248,11 +284,13 @@ import {useI18n} from "vue-i18n";
 import {EmailUnreadEnum} from "@/enums/email-enum.js";
 import { UseVirtualList } from '@vueuse/components'
 import { useScroll } from '@vueuse/core'
+import {labelAttach, labelDetach, labelList as fetchLabels} from '@/request/label.js'
 
 const props = defineProps({
   getEmailList: Function,
   emailDelete: Function,
   emailRead: Function,
+  restoreEmails: Function,
   starAdd: Function,
   starCancel: Function,
   cancelSuccess: Function,
@@ -326,6 +364,10 @@ const dropdownRef = ref(null);
 const dropdownCloseLock = ref(false);
 const dropdownShow = ref(false);
 const rightClickEmail = ref({});
+const labelDialog = ref(false);
+const labelSaving = ref(false);
+const availableLabels = ref([]);
+const selectedLabelIds = ref([]);
 const MAX_SELECT_COUNT = 95;
 const checkedEmailCount = ref(0);
 const isSelectMax = computed(() => checkedEmailCount.value >= MAX_SELECT_COUNT);
@@ -367,6 +409,9 @@ onActivated(() => {
 })
 
 onMounted(() => {
+  if (!['draft', 'all-email', 'trash'].includes(props.type)) {
+    fetchLabels().then(data => availableLabels.value = data).catch(error => console.error('[label:list]', error));
+  }
   timer = setInterval(() => {
     emailList.forEach(email => {
       email.formatCreateTime = fromNow(email.createTime);
@@ -498,6 +543,31 @@ function openForward(email) {
   uiStore.writerRef.openForward(email)
 }
 
+function openLabelDialog() {
+  selectedLabelIds.value = (rightClickEmail.value.labels || []).map(item => item.labelId);
+  labelDialog.value = true;
+}
+
+async function saveLabels() {
+  const emailId = rightClickEmail.value.emailId;
+  const previous = new Set((rightClickEmail.value.labels || []).map(item => item.labelId));
+  const next = new Set(selectedLabelIds.value);
+  const added = [...next].filter(id => !previous.has(id));
+  const removed = [...previous].filter(id => !next.has(id));
+  labelSaving.value = true;
+  try {
+    await Promise.all([
+      ...added.map(labelId => labelAttach([emailId], labelId)),
+      ...removed.map(labelId => labelDetach([emailId], labelId))
+    ]);
+    rightClickEmail.value.labels = availableLabels.value.filter(item => next.has(item.labelId));
+    labelDialog.value = false;
+    ElMessage({message: t('saveSuccessMsg'), type: 'success', plain: true});
+  } finally {
+    labelSaving.value = false;
+  }
+}
+
 function visibleChange(e) {
   dropdownShow.value = e;
   dropdownCloseLock.value = true;
@@ -595,7 +665,7 @@ function starChange(email) {
     email.isStar = 1;
     props.starAdd(email.emailId).then(() => {
       email.isStar = 1;
-      props.starSuccess(email)
+      props.starSuccess?.(email)
     }).catch(e => {
       console.error(e)
       email.isStar = 0
@@ -639,6 +709,16 @@ function localRead(emailIds) {
 }
 
 function rightDelete(emailId) {
+
+  if (props.type === 'trash') {
+    ElMessageBox.confirm(t('deleteForeverConfirm'), {
+      confirmButtonText: t('confirm'), cancelButtonText: t('cancel'), type: 'warning'
+    }).then(() => props.emailDelete([emailId]).then(() => {
+      deleteEmail([emailId]);
+      ElMessage({message: t('delSuccessMsg'), type: 'success', plain: true});
+    }));
+    return;
+  }
 
   if (props.type === 'all-email') {
     ElMessageBox.confirm(t('delOneEmailConfirm'), {
@@ -690,7 +770,7 @@ async function copyCode(code) {
 }
 
 function handleDelete() {
-  ElMessageBox.confirm(t('delEmailsConfirm'), {
+  ElMessageBox.confirm(t(props.type === 'trash' ? 'deleteForeverConfirm' : 'delEmailsConfirm'), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'
@@ -712,6 +792,18 @@ function handleDelete() {
       emailStore.deleteIds = emailIds;
     })
   })
+}
+
+function handleRestore() {
+  restoreSelected(getSelectedMailsIds());
+}
+
+function restoreSelected(emailIds) {
+  if (!emailIds.length || !props.restoreEmails) return;
+  props.restoreEmails(emailIds).then(() => {
+    deleteEmail(emailIds);
+    ElMessage({message: t('restoreSuccessMsg'), type: 'success', plain: true});
+  });
 }
 
 function deleteEmail(emailIds) {
@@ -939,6 +1031,22 @@ function loadData() {
   color: var(--el-text-color-primary);
   overflow: hidden;
   height: 100%;
+}
+
+.label-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.label-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 50%;
 }
 
 .scroll {
@@ -1194,6 +1302,33 @@ function loadData() {
         @media (min-width: 1367px) {
           padding-left: 5px;
         }
+      }
+
+      .mail-labels {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex: 0 1 auto;
+        min-width: 0;
+      }
+
+      .mail-label {
+        max-width: 90px;
+        padding: 0 5px;
+        height: 18px;
+        line-height: 16px;
+        font-size: 11px;
+        font-weight: normal;
+        border: 1px solid;
+        border-radius: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .label-more {
+        color: var(--secondary-text-color);
+        font-size: 11px;
+        font-weight: normal;
       }
 
       .code-tag {

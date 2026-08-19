@@ -22,18 +22,23 @@ import domainUtils from '../utils/domain-uitls';
 import account from "../entity/account";
 import { att } from '../entity/att';
 import telegramService from './telegram-service';
+import labelService from './label-service';
+import mailRuleService from './mail-rule-service';
 
 const emailService = {
 
 	async list(c, params, userId) {
 
-		let { emailId, type, accountId, size, timeSort, allReceive } = params;
+		let { emailId, type, accountId, size, timeSort, allReceive, keyword, globalSearch } = params;
 
 		size = Number(size);
 		emailId = Number(emailId);
 		timeSort = Number(timeSort);
 		accountId = Number(accountId);
 		allReceive = Number(allReceive);
+		globalSearch = Number(globalSearch) === 1;
+		keyword = String(keyword || '').trim();
+		if (keyword.length > 100) throw new BizError('搜索关键词不能超过 100 个字符', 400);
 
 		if (size > 50) {
 			size = 50;
@@ -54,6 +59,36 @@ const emailService = {
 			allReceive = accountRow.allReceive;
 		}
 
+		const accountCondition = allReceive || globalSearch ? eq(1, 1) : eq(email.accountId, accountId);
+		const typeCondition = type === 'all' ? eq(1, 1) : eq(email.type, Number(type));
+		const searchConditions = [];
+		if (keyword) {
+			const ftsQuery = keyword.split(/\s+/).filter(Boolean)
+				.map(word => `"${word.replaceAll('"', '""')}"`).join(' AND ');
+			searchConditions.push(or(
+				sql`${email.emailId} IN (SELECT rowid FROM email_fts WHERE email_fts MATCH ${ftsQuery})`,
+				sql`${email.emailId} IN (SELECT email_id FROM attachments WHERE filename LIKE ${'%' + keyword + '%'})`
+			));
+		}
+
+		const listConditions = [
+			accountCondition,
+			eq(email.userId, userId),
+			timeSort ? gt(email.emailId, emailId) : lt(email.emailId, emailId),
+			typeCondition,
+			eq(email.isDel, isDel.NORMAL),
+			eq(account.isDel, isDel.NORMAL),
+			...searchConditions
+		];
+		const countConditions = [
+			accountCondition,
+			eq(email.userId, userId),
+			typeCondition,
+			eq(email.isDel, isDel.NORMAL),
+			eq(account.isDel, isDel.NORMAL),
+			...searchConditions
+		];
+
 		const query = orm(c)
 			.select({
 				...email,
@@ -71,14 +106,7 @@ const emailService = {
 				eq(account.accountId, email.accountId)
 			)
 			.where(
-				and(
-					allReceive ? eq(1,1) : eq(email.accountId, accountId),
-					eq(email.userId, userId),
-					timeSort ? gt(email.emailId, emailId) : lt(email.emailId, emailId),
-					eq(email.type, type),
-					eq(email.isDel, isDel.NORMAL),
-					eq(account.isDel, isDel.NORMAL)
-				)
+				and(...listConditions)
 			);
 
 		if (timeSort) {
@@ -95,20 +123,14 @@ const emailService = {
 				eq(account.accountId, email.accountId)
 			)
 			.where(
-				and(
-					allReceive ? eq(1,1) : eq(email.accountId, accountId),
-					eq(email.userId, userId),
-					eq(email.type, type),
-					eq(email.isDel, isDel.NORMAL),
-					eq(account.isDel, isDel.NORMAL)
-				)
+				and(...countConditions)
 		).get();
 
 		const latestEmailQuery = orm(c).select().from(email).where(
 			and(
-				allReceive ? eq(1,1) : eq(email.accountId, accountId),
+				accountCondition,
 				eq(email.userId, userId),
-				eq(email.type, type),
+				typeCondition,
 				eq(email.isDel, isDel.NORMAL)
 			))
 			.orderBy(desc(email.emailId)).limit(1).get();
@@ -135,8 +157,7 @@ const emailService = {
 	},
 
 	async delete(c, params, userId) {
-		const { emailIds } = params;
-		const emailIdList = emailIds.split(',').map(Number);
+		const emailIdList = labelService.parseEmailIds(params.emailIds);
 		const { syncDelete } = await settingService.query(c);
 
 		if (syncDelete === settingConst.syncDelete.OPEN) {
@@ -150,11 +171,66 @@ const emailService = {
 			return;
 		}
 
-		await orm(c).update(email).set({ isDel: isDel.DELETE }).where(
+		await orm(c).update(email).set({ isDel: isDel.DELETE, deletedAt: new Date().toISOString() }).where(
 			and(
 				eq(email.userId, userId),
 				inArray(email.emailId, emailIdList)))
 			.run();
+	},
+
+	async trashList(c, params, userId) {
+		let { emailId, size = 30 } = params;
+		emailId = Number(emailId) || 9999999999;
+		size = Math.min(Math.max(Number(size) || 30, 1), 50);
+		const conditions = and(
+			eq(email.userId, userId), eq(email.isDel, isDel.DELETE), lt(email.emailId, emailId)
+		);
+		const [list, totalRow] = await Promise.all([
+			orm(c).select({ ...email, isStar: sql`CASE WHEN ${star.starId} IS NULL THEN 0 ELSE 1 END` })
+				.from(email).leftJoin(star, and(eq(star.emailId, email.emailId), eq(star.userId, userId)))
+				.where(conditions).orderBy(desc(email.emailId)).limit(size).all(),
+			orm(c).select({ total: count() }).from(email)
+				.where(and(eq(email.userId, userId), eq(email.isDel, isDel.DELETE))).get()
+		]);
+		await this.emailAddAtt(c, list);
+		return { list, total: totalRow.total };
+	},
+
+	async restore(c, params, userId) {
+		const emailIds = labelService.parseEmailIds(params.emailIds);
+		const rows = await orm(c).select({ emailId: email.emailId }).from(email).where(and(
+			eq(email.userId, userId), eq(email.isDel, isDel.DELETE), inArray(email.emailId, emailIds)
+		)).all();
+		if (rows.length !== emailIds.length) throw new BizError('部分邮件不存在或不属于当前用户', 404);
+		await orm(c).update(email).set({ isDel: isDel.NORMAL, deletedAt: null })
+			.where(and(eq(email.userId, userId), inArray(email.emailId, emailIds))).run();
+		console.log(`[email:restore] userId=${userId} emailIds=${emailIds.join(',')}`);
+	},
+
+	async deleteForever(c, params, userId) {
+		const emailIds = labelService.parseEmailIds(params.emailIds);
+		const rows = await orm(c).select({ emailId: email.emailId }).from(email).where(and(
+			eq(email.userId, userId), eq(email.isDel, isDel.DELETE), inArray(email.emailId, emailIds)
+		)).all();
+		if (rows.length !== emailIds.length) throw new BizError('只能永久删除当前用户回收站中的邮件', 403);
+		await this.physicsDelete(c, { emailIds: emailIds.join(',') });
+		console.log(`[email:delete-forever] userId=${userId} emailIds=${emailIds.join(',')}`);
+	},
+
+	async purgeTrash(c) {
+		const { trashRetentionDays = 30 } = await settingService.query(c);
+		const days = Math.min(Math.max(Number(trashRetentionDays) || 30, 1), 3650);
+		const cutoff = dayjs().subtract(days, 'day').toISOString();
+		const rows = await orm(c).select({ emailId: email.emailId }).from(email).where(and(
+			eq(email.isDel, isDel.DELETE), lte(email.deletedAt, cutoff)
+		)).limit(500).all();
+		if (!rows.length) {
+			console.log(`[email:trash-purge] cutoff=${cutoff} deleted=0`);
+			return 0;
+		}
+		await this.physicsDelete(c, { emailIds: rows.map(row => row.emailId).join(',') });
+		console.log(`[email:trash-purge] cutoff=${cutoff} deleted=${rows.length}`);
+		return rows.length;
 	},
 
 	receive(c, params, cidAttList, r2domain) {
@@ -634,6 +710,7 @@ const emailService = {
 		for (const emailData of receiveEmailList) {
 
 			const emailRow = await orm(c).insert(email).values(emailData).returning().get();
+			await mailRuleService.apply(c, emailRow);
 
 			//设置附件保存
 			for (const attRow of attList) {
@@ -749,11 +826,13 @@ const emailService = {
 		emailIds = emailIds.split(',').map(Number);
 		await attService.removeByEmailIds(c, emailIds);
 		await starService.removeByEmailIds(c, emailIds);
+		await labelService.removeByEmailIds(c, emailIds);
 		await orm(c).delete(email).where(inArray(email.emailId, emailIds)).run();
 	},
 
 	async physicsDeleteUserIds(c, userIds) {
 		await attService.removeByUserIds(c, userIds);
+		await labelService.removeByUserIds(c, userIds);
 		await orm(c).delete(email).where(inArray(email.userId, userIds)).run();
 	},
 
@@ -920,7 +999,10 @@ const emailService = {
 
 		if (emailIds.length > 0) {
 
-			const attList = await attService.selectByEmailIds(c, emailIds);
+			const [attList] = await Promise.all([
+				attService.selectByEmailIds(c, emailIds),
+				labelService.addLabelsToEmails(c, list)
+			]);
 
 			list.forEach(emailRow => {
 				const atts = attList.filter(attRow => attRow.emailId === emailRow.emailId);
@@ -930,7 +1012,7 @@ const emailService = {
 	},
 
 	async restoreByUserId(c, userId) {
-		await orm(c).update(email).set({ isDel: isDel.NORMAL }).where(eq(email.userId, userId)).run();
+		await orm(c).update(email).set({ isDel: isDel.NORMAL, deletedAt: null }).where(eq(email.userId, userId)).run();
 	},
 
 	async completeReceive(c, status, emailId) {
@@ -987,12 +1069,18 @@ const emailService = {
 		}
 
 		await attService.removeByEmailIds(c, emailIds);
+		await starService.removeByEmailIds(c, emailIds);
+		await labelService.removeByEmailIds(c, emailIds);
 
 		await orm(c).delete(email).where(conditions.length > 1 ? and(...conditions) : conditions[0]).run();
 	},
 
 	async physicsDeleteByAccountId(c, accountId) {
+		const rows = await orm(c).select({ emailId: email.emailId }).from(email).where(eq(email.accountId, accountId)).all();
+		const emailIds = rows.map(row => row.emailId);
 		await attService.removeByAccountId(c, accountId);
+		await starService.removeByEmailIds(c, emailIds);
+		await labelService.removeByEmailIds(c, emailIds);
 		await orm(c).delete(email).where(eq(email.accountId, accountId)).run();
 	},
 

@@ -11,6 +11,7 @@ import roleService from '../service/role-service';
 import userService from '../service/user-service';
 import telegramService from '../service/telegram-service';
 import aiService from '../service/ai-service';
+import mailRuleService from '../service/mail-rule-service';
 
 export async function email(message, env, ctx) {
 
@@ -145,6 +146,7 @@ export async function email(message, env, ctx) {
 		}
 
 		emailRow = await emailService.completeReceive({ env }, account ? emailConst.status.RECEIVE : emailConst.status.NOONE, emailRow.emailId);
+		await mailRuleService.apply({ env }, emailRow);
 
 
 		if (ruleType === settingConst.ruleType.RULE) {

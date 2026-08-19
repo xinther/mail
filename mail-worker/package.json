@@ -4,7 +4,9 @@
 	"private": true,
 	"scripts": {
 		"dev": "wrangler dev --config wrangler-dev.toml",
-		"test": "wrangler deploy --config wrangler-test.toml",
+		"test": "vitest run",
+		"test:worker": "vitest run --config vitest.worker.config.js test/d1-migration.spec.js",
+		"deploy:test": "wrangler deploy --config wrangler-test.toml",
 		"deploy": "wrangler deploy",
 		"start": "wrangler dev"
 	},

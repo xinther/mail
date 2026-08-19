@@ -34,3 +34,16 @@ app.put('/email/read', async (c) => {
 	return c.json(result.ok());
 })
 
+app.get('/email/trash', async c => {
+	return c.json(result.ok(await emailService.trashList(c, c.req.query(), userContext.getUserId(c))));
+});
+
+app.put('/email/restore', async c => {
+	await emailService.restore(c, await c.req.json(), userContext.getUserId(c));
+	return c.json(result.ok());
+});
+
+app.delete('/email/deleteForever', async c => {
+	await emailService.deleteForever(c, c.req.query(), userContext.getUserId(c));
+	return c.json(result.ok());
+});

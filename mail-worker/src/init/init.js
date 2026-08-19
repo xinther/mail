@@ -30,8 +30,95 @@ const dbInit = {
 		await this.v2_9DB(c);
 		await this.v3_0DB(c);
 		await this.v3_1DB(c);
+		await this.v3_2DB(c);
 		await settingService.refresh(c);
 		return c.text('success');
+	},
+
+	async v3_2DB(c) {
+		console.log('[db:migrate:v3.2] starting mailbox productivity migration');
+
+		const deletedAtColumn = await c.env.db.prepare(
+			`SELECT name FROM pragma_table_info('email') WHERE name = 'deleted_at' LIMIT 1`
+		).first();
+		if (!deletedAtColumn) {
+			await c.env.db.prepare(`ALTER TABLE email ADD COLUMN deleted_at DATETIME`).run();
+			await c.env.db.prepare(`UPDATE email SET deleted_at = CURRENT_TIMESTAMP WHERE is_del = 1 AND deleted_at IS NULL`).run();
+			console.log('[db:migrate:v3.2] added email.deleted_at');
+		}
+
+		const retentionColumn = await c.env.db.prepare(
+			`SELECT name FROM pragma_table_info('setting') WHERE name = 'trash_retention_days' LIMIT 1`
+		).first();
+		if (!retentionColumn) {
+			await c.env.db.prepare(
+				`ALTER TABLE setting ADD COLUMN trash_retention_days INTEGER NOT NULL DEFAULT 30`
+			).run();
+			console.log('[db:migrate:v3.2] added setting.trash_retention_days');
+		}
+
+		await c.env.db.batch([
+			c.env.db.prepare(`CREATE TABLE IF NOT EXISTS label (
+				label_id INTEGER PRIMARY KEY AUTOINCREMENT,
+				user_id INTEGER NOT NULL,
+				name TEXT NOT NULL,
+				color TEXT NOT NULL DEFAULT '#409eff',
+				create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			)`),
+			c.env.db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_label_user_name ON label(user_id, name COLLATE NOCASE)`),
+			c.env.db.prepare(`CREATE TABLE IF NOT EXISTS email_label (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				user_id INTEGER NOT NULL,
+				email_id INTEGER NOT NULL,
+				label_id INTEGER NOT NULL
+			)`),
+			c.env.db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_email_label_unique ON email_label(user_id, email_id, label_id)`),
+			c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_label_email ON email_label(email_id)`),
+			c.env.db.prepare(`CREATE TABLE IF NOT EXISTS mail_rule (
+				rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+				user_id INTEGER NOT NULL,
+				name TEXT NOT NULL,
+				enabled INTEGER NOT NULL DEFAULT 1,
+				priority INTEGER NOT NULL DEFAULT 0,
+				field TEXT NOT NULL,
+				operator TEXT NOT NULL,
+				value TEXT NOT NULL,
+				action TEXT NOT NULL,
+				label_id INTEGER,
+				create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			)`),
+			c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_mail_rule_user ON mail_rule(user_id, enabled, priority)`),
+			c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_user_deleted ON email(user_id, is_del, deleted_at)`)
+		]);
+
+		const ftsTable = await c.env.db.prepare(
+			`SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'email_fts' LIMIT 1`
+		).first();
+		await c.env.db.prepare(`CREATE VIRTUAL TABLE IF NOT EXISTS email_fts USING fts5(
+			subject, send_email, name, to_email, text, content,
+			content='email', content_rowid='email_id', tokenize='unicode61'
+		)`).run();
+		await c.env.db.batch([
+			c.env.db.prepare(`CREATE TRIGGER IF NOT EXISTS email_fts_insert AFTER INSERT ON email BEGIN
+				INSERT INTO email_fts(rowid, subject, send_email, name, to_email, text, content)
+				VALUES (new.email_id, new.subject, new.send_email, new.name, new.to_email, new.text, new.content);
+			END`),
+			c.env.db.prepare(`CREATE TRIGGER IF NOT EXISTS email_fts_delete AFTER DELETE ON email BEGIN
+				INSERT INTO email_fts(email_fts, rowid, subject, send_email, name, to_email, text, content)
+				VALUES ('delete', old.email_id, old.subject, old.send_email, old.name, old.to_email, old.text, old.content);
+			END`),
+			c.env.db.prepare(`CREATE TRIGGER IF NOT EXISTS email_fts_update AFTER UPDATE OF subject, send_email, name, to_email, text, content ON email BEGIN
+				INSERT INTO email_fts(email_fts, rowid, subject, send_email, name, to_email, text, content)
+				VALUES ('delete', old.email_id, old.subject, old.send_email, old.name, old.to_email, old.text, old.content);
+				INSERT INTO email_fts(rowid, subject, send_email, name, to_email, text, content)
+				VALUES (new.email_id, new.subject, new.send_email, new.name, new.to_email, new.text, new.content);
+			END`)
+		]);
+		if (!ftsTable) {
+			await c.env.db.prepare(`INSERT INTO email_fts(email_fts) VALUES ('rebuild')`).run();
+			console.log('[db:migrate:v3.2] rebuilt initial full-text index');
+		}
+		console.log('[db:migrate:v3.2] completed: labels, rules, trash and FTS index are ready');
 	},
 
 	async v3_1DB(c) {

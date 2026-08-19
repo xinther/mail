@@ -49,6 +49,8 @@ With only one domain, you can create multiple different email addresses, similar
 
 - **📧 Email Sending**: Integrated with Resend, supporting bulk email sending and attachments.
 
+- **🔎 Mail Productivity**: Full-text search, retention-based trash, message recovery, personal rules, and colored labels.
+
 - **🛡️ Admin Features**: Admin controls for user and email management with RBAC-based access control.
 
 - **📦 Attachment Support**: Send and receive attachments, stored and downloaded via R2 object storage.
@@ -66,6 +68,21 @@ With only one domain, you can create multiple different email addresses, similar
 - **🤖 CAPTCHA**: Integrated with Turnstile CAPTCHA to prevent automated registration.
 
 - **📜 More Features**: Under development...
+
+## v3.2 Database Upgrade and Verification
+
+After deploying the updated Worker, visit `https://your-project-domain/api/init/your_jwt_secret` once to upgrade the database. Initialization is idempotent. It creates the label and mail-rule tables, trash fields, and the D1 FTS5 full-text index, while logging migration results to the Worker logs.
+
+Trash is retained for 30 days by default and can be changed in System Settings. When Sync Delete is enabled, deletion still bypasses Trash and permanently removes the message. Cloudflare D1 export does not support virtual tables, so drop `email_fts` and its triggers before exporting; after importing, visit the initialization URL again to recreate and rebuild the index.
+
+Development verification commands:
+
+```bash
+pnpm --dir mail-vue run build
+pnpm --dir mail-worker run test
+pnpm --dir mail-worker run test:worker
+pnpm --dir mail-worker exec wrangler deploy --dry-run
+```
 
 ## Tech Stack
 

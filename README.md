@@ -54,6 +54,8 @@
 
 - **📧 邮件发送**：集成Resend发送邮件，支持群发，内嵌图片和附件发送，发送状态查看
 
+- **🔎 邮件效率**：支持全文搜索、带保留期的回收站、邮件恢复、个人规则与彩色标签
+
 - **🛡️ 管理员功能**：可以对用户，邮件进行管理，RABC权限控制对功能及使用资源限制
 
 - **📦 附件收发**：支持收发附件，使用R2对象存储保存和下载文件
@@ -71,6 +73,21 @@
 - **🤖 人机验证**：集成Turnstile人机验证，防止人机批量注册
 
 - **📜 更多功能**：正在开发中...
+
+## v3.2 数据库升级与验证
+
+部署新版 Worker 后，访问 `https://你的项目域名/api/init/你的jwt_secret` 执行一次数据库升级。初始化过程可重复执行，会创建标签、邮件规则、回收站字段和 D1 FTS5 全文索引，并在 Worker 日志中输出迁移结果。
+
+回收站默认保留 30 天，可在“系统设置”中调整；启用“同步删除”时，删除操作仍会直接物理删除并绕过回收站。Cloudflare D1 导出不支持虚拟表，因此导出前需删除 `email_fts` 及其触发器；导入完成后再次访问初始化地址即可重建全文索引。
+
+开发验证命令：
+
+```bash
+pnpm --dir mail-vue run build
+pnpm --dir mail-worker run test
+pnpm --dir mail-worker run test:worker
+pnpm --dir mail-worker exec wrangler deploy --dry-run
+```
 
 
 
@@ -153,6 +170,5 @@ cloud-mail
 ## 交流
 
 [Telegram](https://t.me/cloud_mail_tg)
-
 
 

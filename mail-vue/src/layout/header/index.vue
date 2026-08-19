@@ -10,6 +10,20 @@
       </div>
     </div>
     <div class="toolbar">
+      <div class="search-box" :class="searchOpen ? 'search-open' : ''">
+        <el-input
+            v-if="searchOpen"
+            ref="searchInputRef"
+            v-model="keyword"
+            clearable
+            :placeholder="$t('searchMailPlaceholder')"
+            @keyup.enter="submitSearch"
+            @keyup.esc="closeSearch"
+        />
+        <div class="search-icon icon-item" @click="toggleSearch">
+          <Icon icon="iconoir:search"/>
+        </div>
+      </div>
       <div v-if="uiStore.dark" class="sun-icon icon-item" @click="openDark($event)">
         <Icon icon="mingcute:sun-fill"/>
       </div>
@@ -80,7 +94,7 @@ import {Icon} from "@iconify/vue";
 import {useUiStore} from "@/store/ui.js";
 import {useUserStore} from "@/store/user.js";
 import {useRoute} from "vue-router";
-import {computed, ref} from "vue";
+import {computed, nextTick, ref, watch} from "vue";
 import {useSettingStore} from "@/store/setting.js";
 import {hasPerm} from "@/perm/perm.js"
 import {useI18n} from "vue-i18n";
@@ -94,6 +108,36 @@ const uiStore = useUiStore();
 const logoutLoading = ref(false)
 const userInfoShow = ref(false)
 const userinfoRef = ref({})
+const searchInputRef = ref(null)
+const searchOpen = ref(false)
+const keyword = ref('')
+
+watch(() => route.query.q, value => {
+  if (route.name === 'search') keyword.value = String(value || '')
+}, {immediate: true})
+
+function toggleSearch() {
+  if (searchOpen.value) {
+    submitSearch()
+    return
+  }
+  searchOpen.value = true
+  nextTick(() => searchInputRef.value?.focus())
+}
+
+function closeSearch() {
+  searchOpen.value = false
+}
+
+function submitSearch() {
+  const value = keyword.value.trim()
+  if (!value) {
+    ElMessage({message: t('searchKeywordRequired'), type: 'warning', plain: true})
+    return
+  }
+  router.push({name: 'search', query: {q: value}})
+  searchOpen.value = false
+}
 
 const accountCount = computed(() => {
   return userStore.user.role.accountCount
@@ -431,6 +475,21 @@ function formatName(email) {
 
   .icon-item:hover {
     background: var(--base-fill);
+  }
+
+  .search-box {
+    display: flex;
+    align-items: center;
+    min-width: 30px;
+
+    :deep(.el-input) {
+      width: min(280px, 34vw);
+      margin-right: 4px;
+    }
+  }
+
+  .search-icon {
+    font-size: 20px;
   }
 
   .notice {
