@@ -87,6 +87,18 @@
               </div>
               <div class="setting-item">
                 <div>
+                  <span>{{ $t('adminViewEmail') }}</span>
+                  <el-tooltip effect="dark" :content="$t('adminViewEmailDesc')">
+                    <Icon class="warning" icon="fe:warning" width="18" height="18"/>
+                  </el-tooltip>
+                </div>
+                <div>
+                  <el-switch @change="changeField('adminViewEmail', $event)" :before-change="beforeChange"
+                             :active-value="1" :inactive-value="0" v-model="setting.adminViewEmail"/>
+                </div>
+              </div>
+              <div class="setting-item">
+                <div>
                   <span>{{ $t('emailPrefix') }}</span>
                 </div>
                 <div class="forward">
@@ -414,11 +426,20 @@
             <div class="card-content">
               <div class="concerning-item">
                 <span>{{ $t('version') }} :</span>
+                <el-button @click="jump('https://github.com/xinther/mail')">
+                  {{ currentVersion }}
+                  <template #icon>
+                    <Icon icon="qlementine-icons:version-control-16" style="font-size: 20px" color="#1890FF"/>
+                  </template>
+                </el-button>
+              </div>
+              <div class="concerning-item">
+                <span>{{ $t('upstreamVersion') }} :</span>
                 <el-badge is-dot :hidden="!hasUpdate">
                   <el-button @click="jump('https://github.com/maillab/cloud-mail/releases')">
-                    {{ currentVersion }}
+                    {{ upstreamVersion }}
                     <template #icon>
-                      <Icon icon="qlementine-icons:version-control-16" style="font-size: 20px" color="#1890FF"/>
+                      <Icon icon="material-symbols:fork-right" width="22" height="22" color="#67C23A"/>
                     </template>
                   </el-button>
                 </el-badge>
@@ -426,8 +447,14 @@
               <div class="concerning-item">
                 <span>{{ $t('community') }} : </span>
                 <div class="community">
+                  <el-button @click="jump('https://github.com/xinther/mail')">
+                    QianL GitHub
+                    <template #icon>
+                      <Icon icon="codicon:github-inverted" width="22" height="22"/>
+                    </template>
+                  </el-button>
                   <el-button @click="jump('https://github.com/maillab/cloud-mail')">
-                    Github
+                    {{ $t('upstreamProject') }}
                     <template #icon>
                       <Icon icon="codicon:github-inverted" width="22" height="22"/>
                     </template>
@@ -440,14 +467,29 @@
                   </el-button>
                 </div>
               </div>
+              <div class="concerning-item copyright-item">
+                <span>{{ $t('copyright') }} : </span>
+                <div class="copyright-lines">
+                  <span>© 2026 xinther · QianL Mail</span>
+                  <span>{{ $t('upstreamAttribution') }}</span>
+                </div>
+              </div>
               <div class="concerning-item">
                 <span>{{ $t('support') }} : </span>
-                <el-button @click="jump('https://doc.skymail.ink/support.html')">
-                  {{ t('supportDesc') }}
-                  <template #icon>
-                    <Icon color="#79D6B5" icon="simple-icons:buymeacoffee" width="20" height="20"/>
-                  </template>
-                </el-button>
+                <div class="community">
+                  <el-button type="primary" plain @click="donationShow = true">
+                    {{ t('supportQianL') }}
+                    <template #icon>
+                      <Icon icon="solar:hand-money-linear" width="21" height="21"/>
+                    </template>
+                  </el-button>
+                  <el-button @click="jump('https://doc.skymail.ink/support.html')">
+                    {{ t('supportUpstream') }}
+                    <template #icon>
+                      <Icon color="#79D6B5" icon="simple-icons:buymeacoffee" width="20" height="20"/>
+                    </template>
+                  </el-button>
+                </div>
               </div>
               <div class="concerning-item">
                 <span>{{ $t('help') }} : </span>
@@ -823,6 +865,12 @@
         </el-form>
         <el-button type="primary" style="width: 100%;" :loading="settingLoading" @click="saveAiCodeFilter">{{ $t('save') }}</el-button>
       </el-dialog>
+      <el-dialog v-model="donationShow" class="donation-dialog" :title="t('donationTitle')" append-to-body>
+        <div class="donation-content">
+          <img src="/qianl-donation.png" :alt="t('donationQrAlt')"/>
+          <p>{{ t('donationNotice') }}</p>
+        </div>
+      </el-dialog>
     </el-scrollbar>
   </div>
 </template>
@@ -849,7 +897,8 @@ defineOptions({
   name: 'sys-setting'
 })
 
-const currentVersion = 'v3.1.0'
+const currentVersion = 'v3.2.0-qianl.1'
+const upstreamVersion = 'v3.1.0'
 const hasUpdate = ref(false)
 let getUpdateErrorCount = 1;
 const {t, locale} = useI18n();
@@ -857,6 +906,7 @@ const firstLoading = ref(true)
 const settingReady = ref(false)
 const backgroundImage = ref('')
 const localUpShow = ref(false)
+const donationShow = ref(false)
 const accountStore = useAccountStore();
 const userStore = useUserStore();
 const editTitleShow = ref(false)
@@ -1037,7 +1087,7 @@ const resendList = computed(() => {
 function getUpdate() {
   if (getUpdateErrorCount > 5 || !getUpdateErrorCount) return
   axios.get('https://api.github.com/repos/maillab/cloud-mail/releases/latest').then(({data}) => {
-    hasUpdate.value = data.name !== currentVersion
+    hasUpdate.value = data.name !== upstreamVersion
     getUpdateErrorCount = 0
   }).catch(e => {
     getUpdateErrorCount++
@@ -1972,6 +2022,55 @@ function editSetting(settingForm, refreshStatus = true) {
   }
 }
 
+.copyright-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--el-text-color-regular);
+  line-height: 1.45;
+}
+
+.donation-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+
+  img {
+    display: block;
+    width: min(100%, 536px);
+    height: auto;
+    border-radius: 8px;
+  }
+
+  p {
+    margin: 0;
+    color: var(--el-text-color-secondary);
+    line-height: 1.55;
+    text-align: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .about .concerning-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+
+    > span:first-child {
+      padding-right: 0;
+    }
+
+    .community {
+      gap: 8px;
+
+      :deep(.el-button) {
+        margin-left: 0;
+      }
+    }
+  }
+}
+
 .email-title {
   font-weight: normal !important;
   display: grid;
@@ -2021,6 +2120,10 @@ form .el-button {
 </style>
 
 <style>
+.donation-dialog.el-dialog {
+  width: min(600px, calc(100vw - 32px)) !important;
+}
+
 .el-popper.is-dark {
 }
 </style>

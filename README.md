@@ -1,11 +1,14 @@
 <p align="center">
     <img src="doc/demo/logo.png" width="80px" />
-    <h1 align="center">Cloud Mail</h1>
-    <p align="center">基于 Cloudflare 的简约响应式邮箱服务，支持邮件发送、附件收发 🎉</p> 
+    <h1 align="center">QianL Mail</h1>
+    <p align="center">基于 Cloud Mail 的 Cloudflare 邮箱增强版，支持搜索、回收站、规则标签与隐私控制 🎉</p>
     <p align="center">
         简体中文 | <a href="/README-en.md" style="margin-left: 5px">English </a>
     </p>
     <p align="center">
+        <a href="https://github.com/xinther/mail" target="_blank">
+            <img src="https://img.shields.io/badge/QianL_Mail-v3.2.0--qianl.1-1890ff" alt="QianL Mail version" />
+        </a>
         <a href="https://github.com/maillab/cloud-mail/tree/main?tab=MIT-1-ov-file" target="_blank" >
             <img src="https://img.shields.io/badge/license-MIT-green" />
         </a>    
@@ -28,6 +31,8 @@
         </a>
     </p>
 </p>
+
+> QianL Mail 由 [xinther/mail](https://github.com/xinther/mail) 维护，基于 [maillab/cloud-mail](https://github.com/maillab/cloud-mail) 开源项目增强开发。感谢原作者 eoao 持续支持开源。
 
 
 ## 项目简介
@@ -79,6 +84,8 @@
 部署新版 Worker 后，访问 `https://你的项目域名/api/init/你的jwt_secret` 执行一次数据库升级。初始化过程可重复执行，会创建标签、邮件规则、回收站字段和 D1 FTS5 全文索引，并在 Worker 日志中输出迁移结果。
 
 回收站默认保留 30 天，可在“系统设置”中调整；启用“同步删除”时，删除操作仍会直接物理删除并绕过回收站。Cloudflare D1 导出不支持虚拟表，因此导出前需删除 `email_fts` 及其触发器；导入完成后再次访问初始化地址即可重建全文索引。
+
+“允许管理员查看全部邮件”默认开启以兼容现有部署，开启时所有登录用户会收到隐私提示。关闭后会隐藏“全部邮件”入口，并在 Worker API 层拒绝全部邮件的查询和删除请求。
 
 开发验证命令：
 
@@ -158,13 +165,21 @@ cloud-mail
 
 ## 赞助
 
+如果这些增强功能对你有帮助，可以自愿支持 QianL Mail：
+
+<img width="420px" src="./mail-vue/public/qianl-donation.png" alt="QianL Mail 微信和支付宝收款码">
+
+付款前请核对收款人与金额。二维码仅用于自愿捐助。
+
+同时也欢迎继续支持 Cloud Mail 原项目作者：
+
 <a href="https://doc.skymail.ink/support.html" >
 <img width="170px" src="./doc/images/support.png" alt="">
 </a>
 
 ## 许可证
 
-本项目采用 [MIT](LICENSE) 许可证	
+本项目采用 [MIT](LICENSE) 许可证。QianL Mail 增强部分版权归 © 2026 xinther；原 Cloud Mail 版权与署名保持不变。
 
 
 ## 交流

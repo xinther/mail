@@ -131,6 +131,10 @@ router.beforeEach((to, from, next) => {
         return next(from.path)
     }
 
+    if (to.name === 'all-email' && Number(useSettingStore().settings.adminViewEmail) !== 1) {
+        return next({name: 'email'})
+    }
+
     next()
 
 })

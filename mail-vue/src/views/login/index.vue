@@ -140,9 +140,16 @@
         </el-button>
       </div>
     </el-dialog>
-    <a v-show="settingStore.settings.projectLink" class="github" href="https://github.com/maillab/cloud-mail">
-      <Icon icon="mingcute:github-line" color="#1890ff" width="20" height="20" />
-    </a>
+    <div v-show="settingStore.settings.projectLink" class="project-links">
+      <a class="github" href="https://github.com/xinther/mail" target="_blank" rel="noopener noreferrer"
+         aria-label="QianL Mail GitHub" title="QianL Mail GitHub">
+        <Icon icon="mingcute:github-line" color="#1890ff" width="20" height="20" />
+      </a>
+      <a class="github upstream" href="https://github.com/maillab/cloud-mail" target="_blank" rel="noopener noreferrer"
+         aria-label="Cloud Mail upstream GitHub" title="Cloud Mail upstream GitHub">
+        <Icon icon="material-symbols:fork-right" color="#67c23a" width="21" height="21" />
+      </a>
+    </div>
   </div>
 </template>
 
@@ -709,8 +716,16 @@ function submitRegister() {
   top: 6px;
 }
 
-.github {
+.project-links {
   position: fixed;
+  display: flex;
+  gap: 8px;
+  bottom: 10px;
+  right: 10px;
+  z-index: 1000;
+}
+
+.github {
   width: 35px;
   height: 35px;
   display: flex;
@@ -718,12 +733,15 @@ function submitRegister() {
   align-items: center;
   border-radius: 50%;
   background: var(--el-bg-color);
-  bottom: 10px;
-  right: 10px;
-  z-index: 1000;
   border: 1px solid var(--el-border-color-light);
   box-shadow: var(--el-box-shadow-light);
   cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: var(--el-color-primary-light-5);
+  }
 }
 
 :deep(.el-input-group__append) {

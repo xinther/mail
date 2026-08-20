@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import mailRuleService from '../src/service/mail-rule-service';
 import labelService from '../src/service/label-service';
+import {adminEmailAccessEnabled} from '../src/service/privacy-service';
 
 describe('mail rule matching', () => {
 	const email = {
@@ -30,5 +31,14 @@ describe('email id validation', () => {
 
 	it('rejects empty input instead of silently doing nothing', () => {
 		expect(() => labelService.parseEmailIds('')).toThrow('邮件 ID 数量必须为 1-50');
+	});
+});
+
+describe('administrator email privacy setting', () => {
+	it('allows access only for the explicit enabled value', () => {
+		expect(adminEmailAccessEnabled(1)).toBe(true);
+		expect(adminEmailAccessEnabled('1')).toBe(true);
+		expect(adminEmailAccessEnabled(0)).toBe(false);
+		expect(adminEmailAccessEnabled(undefined)).toBe(false);
 	});
 });

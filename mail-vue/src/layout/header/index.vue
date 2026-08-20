@@ -23,6 +23,10 @@
         <div class="search-icon icon-item" @click="toggleSearch">
           <Icon icon="iconoir:search"/>
         </div>
+        <button v-if="searchOpen" type="button" class="search-close icon-item"
+                :title="$t('closeSearch')" @click.stop="closeSearch">
+          <Icon icon="material-symbols:close-rounded"/>
+        </button>
       </div>
       <div v-if="uiStore.dark" class="sun-icon icon-item" @click="openDark($event)">
         <Icon icon="mingcute:sun-fill"/>
@@ -406,6 +410,7 @@ function formatName(email) {
   height: 100%;
   gap: 10px;
   grid-template-columns: auto auto 1fr;
+  position: relative;
 }
 
 .header.not-send {
@@ -492,6 +497,14 @@ function formatName(email) {
     font-size: 20px;
   }
 
+  .search-close {
+    padding: 0;
+    border: 0;
+    color: var(--el-text-color-primary);
+    background: transparent;
+    font-size: 21px;
+  }
+
   .notice {
     font-size: 22px;
     margin-right: 4px;
@@ -530,6 +543,31 @@ function formatName(email) {
     }
   }
 
+}
+
+@media (max-width: 767px) {
+  .toolbar .search-box.search-open {
+    position: absolute;
+    z-index: 20;
+    inset: 0 6px 0 48px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 36px 36px;
+    gap: 3px;
+    padding: 8px 0 8px 6px;
+    background: var(--el-bg-color);
+    box-shadow: -8px 0 12px -12px rgba(0, 0, 0, 0.35);
+
+    :deep(.el-input) {
+      width: 100%;
+      min-width: 0;
+      margin-right: 0;
+    }
+
+    .icon-item {
+      width: 36px;
+      height: 36px;
+    }
+  }
 }
 
 .el-tooltip__trigger:first-child:focus-visible {

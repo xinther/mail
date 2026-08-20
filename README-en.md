@@ -1,11 +1,14 @@
 <p align="center">
     <img src="doc/demo/logo.png" width="80px" />
-    <h1 align="center">Cloud Mail</h1>
-    <p align="center">A simple, responsive email service designed to run on Cloudflare Workers 🎉</p> 
+    <h1 align="center">QianL Mail</h1>
+    <p align="center">An enhanced Cloudflare mail service based on Cloud Mail, with search, trash, rules, labels, and privacy controls 🎉</p>
     <p align="center">
        <a href="/README.md" style="margin-left: 5px">简体中文</a> | English 
     </p>
     <p align="center">
+        <a href="https://github.com/xinther/mail" target="_blank">
+            <img src="https://img.shields.io/badge/QianL_Mail-v3.2.0--qianl.1-1890ff" alt="QianL Mail version" />
+        </a>
         <a href="https://github.com/maillab/cloud-mail/tree/main?tab=MIT-1-ov-file" target="_blank" >
             <img src="https://img.shields.io/badge/license-MIT-green" />
         </a>    
@@ -28,6 +31,8 @@
         </a>
     </p>
 </p>
+
+> QianL Mail is maintained at [xinther/mail](https://github.com/xinther/mail) and enhanced from the open-source [maillab/cloud-mail](https://github.com/maillab/cloud-mail) project. Thanks to the original author eoao for supporting open source.
 
 ## Description
 With only one domain, you can create multiple different email addresses, similar to major email platforms. This project can be deployed on Cloudflare Workers to reduce server costs and build your own email service.
@@ -74,6 +79,8 @@ With only one domain, you can create multiple different email addresses, similar
 After deploying the updated Worker, visit `https://your-project-domain/api/init/your_jwt_secret` once to upgrade the database. Initialization is idempotent. It creates the label and mail-rule tables, trash fields, and the D1 FTS5 full-text index, while logging migration results to the Worker logs.
 
 Trash is retained for 30 days by default and can be changed in System Settings. When Sync Delete is enabled, deletion still bypasses Trash and permanently removes the message. Cloudflare D1 export does not support virtual tables, so drop `email_fts` and its triggers before exporting; after importing, visit the initialization URL again to recreate and rebuild the index.
+
+Allow Admins to View All Mail remains enabled by default for compatibility, and signed-in users receive a privacy notice while it is enabled. Disabling it hides the All Mail entry and rejects all-mail query and deletion requests at the Worker API layer.
 
 Development verification commands:
 
@@ -152,13 +159,21 @@ cloud-mail
 
 ## Sponsor
 
+If the enhancements are useful to you, you may voluntarily support QianL Mail:
+
+<img width="420px" src="./mail-vue/public/qianl-donation.png" alt="QianL Mail WeChat Pay and Alipay donation QR codes">
+
+Verify the recipient and amount before paying. The QR codes are for voluntary donations only.
+
+You can also continue supporting the original Cloud Mail author:
+
 <a href="https://doc.skymail.ink/support.html">
 <img width="170px" src="./doc/images/support.png" alt="">
 </a>
 
 ## License
 
-This project is licensed under the [MIT](LICENSE) license.
+This project is licensed under the [MIT](LICENSE) license. QianL Mail enhancements are © 2026 xinther; the original Cloud Mail copyright and attribution remain intact.
 
 ## Communication
 

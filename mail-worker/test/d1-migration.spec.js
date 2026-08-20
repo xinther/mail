@@ -13,7 +13,13 @@ describe('v3.2 D1 migration', () => {
 
 		const context = { env };
 		await dbInit.v3_2DB(context);
+		await dbInit.v3_2PrivacyDB(context);
 		await dbInit.v3_2DB(context);
+		await dbInit.v3_2PrivacyDB(context);
+
+		await env.db.prepare(`INSERT INTO setting (sync_delete) VALUES (1)`).run();
+		const privacySetting = await env.db.prepare(`SELECT admin_view_email FROM setting`).first();
+		expect(privacySetting.admin_view_email).toBe(1);
 
 		await env.db.prepare(`INSERT INTO email
 			(subject, send_email, name, to_email, text, content, user_id, account_id)

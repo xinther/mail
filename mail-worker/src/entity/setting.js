@@ -53,6 +53,7 @@ export const setting = sqliteTable('setting', {
 	aiCode: integer('ai_code').default(1).notNull(),
 	aiCodeFilter: text('ai_code_filter').default('').notNull(),
 	syncDelete: integer('sync_delete').default(1).notNull(),
-	trashRetentionDays: integer('trash_retention_days').default(30).notNull()
+	trashRetentionDays: integer('trash_retention_days').default(30).notNull(),
+	adminViewEmail: integer('admin_view_email').default(1).notNull()
 });
 export default setting

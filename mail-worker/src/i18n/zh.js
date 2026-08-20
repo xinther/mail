@@ -56,6 +56,7 @@ const zh = {
 	botVerifyFail: '人机验证失败,请重试',
 	authExpired: '身份认证失效,请重新登录',
 	unauthorized: '权限不足',
+	adminEmailAccessDisabled: '管理员查看全部邮件功能已关闭',
 	bannedSend: '你没有邮件发送权限',
 	onlyInternalSend: '权限不足，只能给站内邮箱发件',
 	noDomainPermAdd: '你没有权限添加该域名邮箱',

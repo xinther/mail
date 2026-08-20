@@ -16,13 +16,18 @@ import {useSettingStore} from "@/store/setting.js";
 import {computed, onBeforeUnmount, onMounted, watch} from "vue";
 import { useRoute } from 'vue-router'
 import { hasPerm } from "@/perm/perm.js"
+import {useUserStore} from "@/store/user.js";
+import {useI18n} from "vue-i18n";
 
 const settingStore = useSettingStore()
+const userStore = useUserStore()
 const uiStore = useUiStore();
 const route = useRoute()
+const {t} = useI18n()
 let  innerWidth =  window.innerWidth
 
 let elNotification = null
+let privacyNotification = null
 
 const accountShow = computed(() => {
   return uiStore.accountShow && settingStore.settings.manyEmail === 0
@@ -49,6 +54,28 @@ watch(() => uiStore.changeNotice, () => {
 watch(() => uiStore.changePreview, () => {
   showNotice(uiStore.previewData)
 })
+
+watch(() => settingStore.settings.adminViewEmail, (value, previous) => {
+  if (Number(value) === 1 && Number(previous) !== 1) {
+    showPrivacyNotice()
+  } else if (Number(value) !== 1 && privacyNotification) {
+    privacyNotification.close()
+    privacyNotification = null
+  }
+})
+
+function showPrivacyNotice() {
+  if (Number(settingStore.settings.adminViewEmail) !== 1 || !userStore.user?.userId) return
+  privacyNotification?.close()
+  privacyNotification = ElNotification({
+    title: t('mailPrivacyNoticeTitle'),
+    message: t('mailPrivacyNoticeContent'),
+    type: 'warning',
+    duration: 9000,
+    position: 'bottom-right',
+    customClass: 'privacy-notice'
+  })
+}
 
 function showNotice(data) {
 
@@ -84,10 +111,12 @@ function showNotice(data) {
 onMounted(() => {
   window.addEventListener('resize', handleResize)
   handleResize()
+  showPrivacyNotice()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  privacyNotification?.close()
 })
 
 const handleResize = () => {
@@ -176,5 +205,16 @@ const handleResize = () => {
     background: var(--el-bg-color);
     margin-left: 5px;
   }
+}
+</style>
+
+<style lang="scss">
+.privacy-notice.el-notification {
+  --el-notification-width: min(360px, calc(100vw - 24px));
+}
+
+.privacy-notice .el-notification__content {
+  line-height: 1.55;
+  text-align: left;
 }
 </style>

@@ -31,8 +31,23 @@ const dbInit = {
 		await this.v3_0DB(c);
 		await this.v3_1DB(c);
 		await this.v3_2DB(c);
+		await this.v3_2PrivacyDB(c);
 		await settingService.refresh(c);
 		return c.text('success');
+	},
+
+	async v3_2PrivacyDB(c) {
+		console.log('[db:migrate:v3.2-privacy] starting admin email privacy migration');
+		const column = await c.env.db.prepare(
+			`SELECT name FROM pragma_table_info('setting') WHERE name = 'admin_view_email' LIMIT 1`
+		).first();
+		if (!column) {
+			await c.env.db.prepare(
+				`ALTER TABLE setting ADD COLUMN admin_view_email INTEGER NOT NULL DEFAULT 1`
+			).run();
+			console.log('[db:migrate:v3.2-privacy] added setting.admin_view_email default=1');
+		}
+		console.log('[db:migrate:v3.2-privacy] completed');
 	},
 
 	async v3_2DB(c) {
