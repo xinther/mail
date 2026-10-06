@@ -7,7 +7,7 @@
     </p>
     <p align="center">
         <a href="https://github.com/xinther/mail" target="_blank">
-            <img src="https://img.shields.io/badge/QianL_Mail-v3.2.0--qianl.1-1890ff" alt="QianL Mail version" />
+            <img src="https://img.shields.io/badge/QianL_Mail-v3.3.0--qianl.1-1890ff" alt="QianL Mail version" />
         </a>
         <a href="https://github.com/maillab/cloud-mail/tree/main?tab=MIT-1-ov-file" target="_blank" >
             <img src="https://img.shields.io/badge/license-MIT-green" />
