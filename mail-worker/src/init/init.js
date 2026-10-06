@@ -31,13 +31,86 @@ const dbInit = {
 		await this.v3_0DB(c);
 		await this.v3_1DB(c);
 		await this.v3_2DB(c);
-		await this.v3_2PrivacyDB(c);
+		await this.v3_3DB(c);
+		await this.v3_2QianLDB(c);
+		await this.v3_2QianLPrivacyDB(c);
+		await this.verifySchema(c);
 		await settingService.refresh(c);
 		return c.text('success');
 	},
 
-	async v3_2PrivacyDB(c) {
-		console.log('[db:migrate:v3.2-privacy] starting admin email privacy migration');
+
+	async v3_3DB(c) {
+		try {
+			await c.env.db.batch([
+				c.env.db.prepare(`ALTER TABLE setting ADD COLUMN auto_clean_days INTEGER NOT NULL DEFAULT 0;`),
+				c.env.db.prepare(`ALTER TABLE setting ADD COLUMN auto_clean_exclude TEXT NOT NULL DEFAULT '';`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_create_time ON email(create_time)`)
+			]);
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
+
+		try {
+			await c.env.db.batch([
+				c.env.db.prepare(`ALTER TABLE setting ADD COLUMN webhook_url TEXT NOT NULL DEFAULT '';`),
+				c.env.db.prepare(`ALTER TABLE setting ADD COLUMN webhook_status INTEGER NOT NULL DEFAULT 1;`),
+				c.env.db.prepare(`ALTER TABLE setting ADD COLUMN webhook_retry INTEGER NOT NULL DEFAULT 0;`),
+				c.env.db.prepare(`ALTER TABLE setting ADD COLUMN webhook_secret TEXT NOT NULL DEFAULT '';`)
+			]);
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
+	},
+
+	async v3_2DB(c) {
+		try {
+			await c.env.db.batch([
+				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN linuxdo_client_id TEXT NOT NULL DEFAULT '';`),
+				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN linuxdo_client_secret TEXT NOT NULL DEFAULT '';`),
+				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN github_client_id TEXT NOT NULL DEFAULT '';`),
+				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN github_client_secret TEXT NOT NULL DEFAULT '';`),
+				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN google_client_id TEXT NOT NULL DEFAULT '';`),
+				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN google_client_secret TEXT NOT NULL DEFAULT '';`),
+				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN linuxdo_switch INTEGER NOT NULL DEFAULT 1;`),
+				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN github_switch INTEGER NOT NULL DEFAULT 1;`),
+				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN google_switch INTEGER NOT NULL DEFAULT 1;`)
+			]);
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
+
+		try {
+			await c.env.db.batch([
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_list_user ON email(user_id, type, is_del, email_id)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_list_account ON email(user_id, account_id, type, is_del, email_id)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_star_user_email ON star(user_id, email_id)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_star_email_user ON star(email_id, user_id)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_name_nocase ON email(name COLLATE NOCASE)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_subject_nocase ON email(subject COLLATE NOCASE)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_email_nocase ON user(email COLLATE NOCASE)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_to_email_nocase ON email(to_email COLLATE NOCASE)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_send_email_nocase ON email(send_email COLLATE NOCASE)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_noone_id ON email(email_id) WHERE status = 7`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_type_id ON email(type, email_id)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_account_user_del_sort ON account(user_id, is_del, sort, account_id)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_saving_account ON email(account_id) WHERE status = 6`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_type_name ON email(type, name)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_type_create_time ON email(type, create_time)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_create_time ON user(create_time)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_type ON user(type)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_attachments_email_type ON attachments(email_id, type)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_role_perm_role ON role_perm(role_id)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_oauth_oauth_user_id ON oauth(oauth_user_id)`),
+				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_oauth_user_id ON oauth(user_id)`)
+			]);
+		} catch (e) {
+			console.warn(`跳过索引：${e.message}`);
+		}
+	},
+
+	async v3_2QianLPrivacyDB(c) {
+		console.log('[db:migrate:v3.2-qianl-privacy] starting admin email privacy migration');
 		const column = await c.env.db.prepare(
 			`SELECT name FROM pragma_table_info('setting') WHERE name = 'admin_view_email' LIMIT 1`
 		).first();
@@ -45,13 +118,13 @@ const dbInit = {
 			await c.env.db.prepare(
 				`ALTER TABLE setting ADD COLUMN admin_view_email INTEGER NOT NULL DEFAULT 1`
 			).run();
-			console.log('[db:migrate:v3.2-privacy] added setting.admin_view_email default=1');
+			console.log('[db:migrate:v3.2-qianl-privacy] added setting.admin_view_email default=1');
 		}
-		console.log('[db:migrate:v3.2-privacy] completed');
+		console.log('[db:migrate:v3.2-qianl-privacy] completed');
 	},
 
-	async v3_2DB(c) {
-		console.log('[db:migrate:v3.2] starting mailbox productivity migration');
+	async v3_2QianLDB(c) {
+		console.log('[db:migrate:v3.2-qianl] starting mailbox productivity migration');
 
 		const deletedAtColumn = await c.env.db.prepare(
 			`SELECT name FROM pragma_table_info('email') WHERE name = 'deleted_at' LIMIT 1`
@@ -59,7 +132,7 @@ const dbInit = {
 		if (!deletedAtColumn) {
 			await c.env.db.prepare(`ALTER TABLE email ADD COLUMN deleted_at DATETIME`).run();
 			await c.env.db.prepare(`UPDATE email SET deleted_at = CURRENT_TIMESTAMP WHERE is_del = 1 AND deleted_at IS NULL`).run();
-			console.log('[db:migrate:v3.2] added email.deleted_at');
+			console.log('[db:migrate:v3.2-qianl] added email.deleted_at');
 		}
 
 		const retentionColumn = await c.env.db.prepare(
@@ -69,7 +142,7 @@ const dbInit = {
 			await c.env.db.prepare(
 				`ALTER TABLE setting ADD COLUMN trash_retention_days INTEGER NOT NULL DEFAULT 30`
 			).run();
-			console.log('[db:migrate:v3.2] added setting.trash_retention_days');
+			console.log('[db:migrate:v3.2-qianl] added setting.trash_retention_days');
 		}
 
 		await c.env.db.batch([
@@ -131,11 +204,43 @@ const dbInit = {
 		]);
 		if (!ftsTable) {
 			await c.env.db.prepare(`INSERT INTO email_fts(email_fts) VALUES ('rebuild')`).run();
-			console.log('[db:migrate:v3.2] rebuilt initial full-text index');
+			console.log('[db:migrate:v3.2-qianl] rebuilt initial full-text index');
 		}
-		console.log('[db:migrate:v3.2] completed: labels, rules, trash and FTS index are ready');
+		console.log('[db:migrate:v3.2-qianl] completed: labels, rules, trash and FTS index are ready');
 	},
 
+	async verifySchema(c) {
+		const columnsByTable = {};
+		for (const table of ['setting', 'email']) {
+			const rows = await c.env.db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all();
+			columnsByTable[table] = new Set((rows.results || []).map(row => row.name));
+		}
+		const missing = [];
+		const requiredColumns = [
+			['setting', 'trash_retention_days'],
+			['setting', 'admin_view_email'],
+			['setting', 'auto_clean_days'],
+			['setting', 'webhook_url'],
+			['setting', 'github_client_id'],
+			['setting', 'google_client_id'],
+			['email', 'deleted_at']
+		];
+		for (const [table, column] of requiredColumns) {
+			if (!columnsByTable[table]?.has(column)) missing.push(`${table}.${column}`);
+		}
+		const requiredTables = ['label', 'email_label', 'mail_rule', 'email_fts'];
+		const tableRows = await c.env.db.prepare(
+			`SELECT name FROM sqlite_schema WHERE type = 'table' AND name IN ('label','email_label','mail_rule','email_fts')`
+		).all();
+		const found = new Set((tableRows.results || []).map(row => row.name));
+		for (const table of requiredTables) {
+			if (!found.has(table)) missing.push(table);
+		}
+		if (missing.length) {
+			throw new Error(`[db:migrate] schema incomplete, missing: ${missing.join(', ')}`);
+		}
+		console.log('[db:migrate] schema verification passed');
+	},
 	async v3_1DB(c) {
 		try {
 			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN sync_delete INTEGER NOT NULL DEFAULT 0;`).run();
@@ -143,6 +248,7 @@ const dbInit = {
 			console.warn(`跳过字段：${e.message}`);
 		}
 	},
+
 
 	async v3_0DB(c) {
 		try {

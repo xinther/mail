@@ -7,19 +7,37 @@ describe('v3.2 D1 migration', () => {
 		await env.db.prepare(`CREATE TABLE email (
 				email_id INTEGER PRIMARY KEY AUTOINCREMENT,
 				subject TEXT, send_email TEXT, name TEXT, to_email TEXT, text TEXT, content TEXT,
-				user_id INTEGER NOT NULL, account_id INTEGER NOT NULL, is_del INTEGER NOT NULL DEFAULT 0
+				user_id INTEGER NOT NULL, account_id INTEGER NOT NULL, is_del INTEGER NOT NULL DEFAULT 0,
+				type INTEGER NOT NULL DEFAULT 0, status INTEGER NOT NULL DEFAULT 0,
+				create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 			)`).run();
 		await env.db.prepare(`CREATE TABLE setting (sync_delete INTEGER NOT NULL DEFAULT 1)`).run();
+		await env.db.prepare(`CREATE TABLE star (star_id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, email_id INTEGER)`).run();
+		await env.db.prepare(`CREATE TABLE oauth (oauth_user_id INTEGER, user_id INTEGER)`).run();
+		await env.db.prepare(`CREATE TABLE attachments (email_id INTEGER, type INTEGER)`).run();
+		await env.db.prepare(`CREATE TABLE role_perm (role_id INTEGER)`).run();
+		await env.db.prepare(`CREATE TABLE user (user_id INTEGER PRIMARY KEY, email TEXT, create_time DATETIME, type INTEGER)`).run();
+		await env.db.prepare(`CREATE TABLE account (account_id INTEGER PRIMARY KEY, user_id INTEGER, email TEXT, is_del INTEGER, sort INTEGER)`).run();
 
 		const context = { env };
 		await dbInit.v3_2DB(context);
-		await dbInit.v3_2PrivacyDB(context);
+		await dbInit.v3_3DB(context);
+		await dbInit.v3_2QianLDB(context);
+		await dbInit.v3_2QianLPrivacyDB(context);
 		await dbInit.v3_2DB(context);
-		await dbInit.v3_2PrivacyDB(context);
+		await dbInit.v3_3DB(context);
+		await dbInit.v3_2QianLDB(context);
+		await dbInit.v3_2QianLPrivacyDB(context);
+		await dbInit.verifySchema(context);
 
 		await env.db.prepare(`INSERT INTO setting (sync_delete) VALUES (1)`).run();
 		const privacySetting = await env.db.prepare(`SELECT admin_view_email FROM setting`).first();
 		expect(privacySetting.admin_view_email).toBe(1);
+
+		const upstreamSetting = await env.db.prepare(`SELECT auto_clean_days, webhook_url, github_client_id FROM setting`).first();
+		expect(upstreamSetting.auto_clean_days).toBe(0);
+		expect(upstreamSetting.webhook_url).toBe('');
+		expect(upstreamSetting.github_client_id).toBe('');
 
 		await env.db.prepare(`INSERT INTO email
 			(subject, send_email, name, to_email, text, content, user_id, account_id)

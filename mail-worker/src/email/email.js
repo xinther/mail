@@ -12,6 +12,7 @@ import userService from '../service/user-service';
 import telegramService from '../service/telegram-service';
 import aiService from '../service/ai-service';
 import mailRuleService from '../service/mail-rule-service';
+import webhookService from '../service/webhook-service';
 
 export async function email(message, env, ctx) {
 
@@ -23,6 +24,10 @@ export async function email(message, env, ctx) {
 			tgBotStatus,
 			forwardStatus,
 			forwardEmail,
+			webhookStatus,
+			webhookUrl,
+			webhookRetry,
+			webhookSecret,
 			ruleEmail,
 			ruleType,
 			r2Domain,
@@ -58,7 +63,14 @@ export async function email(message, env, ctx) {
 			return;
 		}
 
-		const account = await accountService.selectByEmailIncludeDel({ env: env }, message.to);
+		let account = await accountService.selectByEmailIncludeDel({ env: env }, message.to);
+
+		if (!account) {
+			const baseEmail = emailUtils.getBaseEmail(message.to);
+			if (baseEmail && baseEmail !== message.to) {
+				account = await accountService.selectByEmailIncludeDel({ env: env }, baseEmail);
+			}
+		}
 
 		if (!account && noRecipient === settingConst.noRecipient.CLOSE) {
 			message.setReject('Recipient not found');
@@ -179,6 +191,11 @@ export async function email(message, env, ctx) {
 
 			}));
 
+		}
+
+		//转发到 Webhook
+		if (webhookStatus === settingConst.webhookStatus.OPEN && webhookUrl) {
+			await webhookService.sendEmail({ env }, emailRow, webhookUrl, webhookRetry, webhookSecret);
 		}
 
 	} catch (e) {

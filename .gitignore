@@ -27,3 +27,5 @@ mail-vue/dist
 .venv
 .playwright-cli/
 output/
+
+git-tools.js
