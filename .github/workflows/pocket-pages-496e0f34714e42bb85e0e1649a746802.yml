@@ -1,0 +1,97 @@
+# Pocket Pages managed workflow: 496e0f34714e42bb85e0e1649a746802
+name: Pocket Pages 496e0f34
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pocket-496e0f34714e42bb85e0e1649a746802
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'xinther/mail' && github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build in GitHub (optional repository variable)
+        env:
+          BUILD_COMMAND: ""
+        run: |
+          set -euo pipefail
+          if [ -n "$BUILD_COMMAND" ]; then bash -euo pipefail -c "$BUILD_COMMAND"; fi
+      - name: Publish built directory
+        env:
+          POCKET_ENDPOINT: "https://panel.bi6.top/api/ci/projects/496e0f34714e42bb85e0e1649a746802/deploy"
+          POCKET_OUTPUT_DIR: "."
+          POCKET_TOKEN: ${{ secrets.POCKET_DEPLOY_TOKEN_496E0F34714E42BB85E0E1649A746802_AC996838EDC84361A0E96CDC410E679A }}
+        shell: python
+        run: |
+          """Standalone GitHub runner client, embedded in generated workflows. Stdlib only."""
+          import io
+          import json
+          import os
+          from pathlib import Path
+          import stat
+          import urllib.request
+          import urllib.error
+          from urllib.parse import urlsplit
+          import zipfile
+          
+          
+          def pack(directory):
+              workspace=Path(os.environ.get('GITHUB_WORKSPACE','.')).resolve()
+              root=(workspace/directory).resolve()
+              if not root.is_relative_to(workspace) or not root.is_dir():raise ValueError('Build output must be an existing directory within GITHUB_WORKSPACE')
+              buffer=io.BytesIO();count=0;size=0;excluded=[]
+              with zipfile.ZipFile(buffer,'w',zipfile.ZIP_DEFLATED) as z:
+                  for parent,dirs,files in os.walk(root,followlinks=False):
+                      for name in list(dirs):
+                          p=Path(parent)/name
+                          if p.is_symlink():raise ValueError(f'Symlink refused: {p.relative_to(root)}')
+                          if name.startswith('.') or name in {'node_modules','__pycache__'}:
+                              dirs.remove(name);excluded.append(p.relative_to(root).as_posix())
+                      for name in sorted(files):
+                          p=Path(parent)/name
+                          if name.startswith('.'):excluded.append(p.relative_to(root).as_posix());continue
+                          info=p.lstat()
+                          if not stat.S_ISREG(info.st_mode):raise ValueError(f'Nonregular file refused: {p.relative_to(root)}')
+                          count+=1;size+=info.st_size
+                          if count>3000 or size>100*1024*1024:raise ValueError('Build output exceeds 3000 files / 100 MiB')
+                          z.write(p,p.relative_to(root).as_posix())
+                          if buffer.tell()>20*1024*1024:raise ValueError('ZIP exceeds 20 MiB')
+              if not count or len(buffer.getvalue())>20*1024*1024:raise ValueError('Empty or oversized ZIP')
+              print(json.dumps({'output':str(root),'files':count,'expanded_bytes':size,'zip_bytes':len(buffer.getvalue()),'excluded_paths':excluded[:30],'excluded_total':len(excluded)}),flush=True)
+              return buffer.getvalue()
+          
+          
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):raise RuntimeError('CI upload redirect refused; check platform URL')
+          
+          
+          def main():
+              url=os.environ['POCKET_ENDPOINT'];parsed=urlsplit(url)
+              if parsed.scheme!='https' or parsed.username or parsed.password or parsed.query or parsed.fragment:raise ValueError('Deployment endpoint must be HTTPS without credentials/query/fragment')
+              if os.environ['GITHUB_EVENT_NAME'] not in {'push','workflow_dispatch'}:raise ValueError('Only branch push and manual dispatch can publish')
+              if os.environ['GITHUB_REF_TYPE']!='branch':raise ValueError('Tags cannot publish through a branch credential')
+              raw=pack(os.environ.get('POCKET_OUTPUT_DIR') or '.')
+              metadata={'repository':os.environ['GITHUB_REPOSITORY'],'branch':os.environ['GITHUB_REF_NAME'],'commit':os.environ['GITHUB_SHA'],'run':int(os.environ['GITHUB_RUN_NUMBER']),'attempt':int(os.environ['GITHUB_RUN_ATTEMPT']),'delivery':os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT']}
+              request=urllib.request.Request(url,data=raw,method='POST',headers={'Authorization':'Bearer '+os.environ['POCKET_TOKEN'],'Content-Type':'application/zip','X-Pocket-CI':json.dumps(metadata,separators=(',',':'))})
+              opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
+              try:
+                  with opener.open(request,timeout=180) as r:result=json.loads(r.read(65536))
+              except urllib.error.HTTPError as exc:
+                  try:detail=exc.read(4096).decode('utf-8',errors='replace')
+                  finally:exc.close()
+                  raise RuntimeError(f'CI deployment HTTP {exc.code}: {detail}; inspect the platform deployment history before rerunning') from None
+              print(json.dumps({'release':result['id'],'duplicate':result['duplicate'],'commit':metadata['commit']}),flush=True)
+          
+          
+          if __name__=='__main__':main()
